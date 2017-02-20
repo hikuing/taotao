@@ -23,7 +23,7 @@ public class ApiItemController {
 	 * @return
 	 */
 	@RequestMapping(value="{itemId}",method=RequestMethod.GET)
-	public ResponseEntity<Void> delItemCache(@PathVariable("itemId") Long[] itemId) {
+	public ResponseEntity<Void> delItemCache(@PathVariable("itemId") String itemId) {
 		try {
 			this.itemService.delItemCache(itemId);
 			return ResponseEntity.status(HttpStatus.OK).build();

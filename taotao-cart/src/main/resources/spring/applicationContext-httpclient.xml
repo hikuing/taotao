@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+	http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+	http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+	http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.0.xsd">
+	
+	<!-- 配置连接管理器 -->
+	<bean id="httpClientConnectionManager" class="org.apache.http.impl.conn.PoolingHttpClientConnectionManager">
+		<property name="maxTotal" value="${httpclient.maxTotal}"></property>
+		<property name="defaultMaxPerRoute" value="${httpclient.defaultMaxPerRoute}"></property>
+	</bean> 
+
+	<!-- 配置httpclintbuiler -->
+	<bean id="httpclientBuilder" class="org.apache.http.impl.client.HttpClientBuilder" >
+		<property name="connectionManager" ref="httpClientConnectionManager"></property>
+	</bean>
+	<!-- 配置httpclient  配置多例 -->
+	<bean class="org.apache.http.impl.client.CloseableHttpClient" factory-bean="httpclientBuilder" factory-method="build" scope="prototype"></bean>
+	
+	<!-- 配置requestConfigBuilder -->
+	<bean id="requestConfigBuilder" class="org.apache.http.client.config.RequestConfig.Builder">
+		<property name="connectTimeout" value="${httpclient.connectTimeout}"></property>
+		<property name="connectionRequestTimeout" value="${httpclient.connectionRequestTimeout}"></property>
+		<property name="socketTimeout" value="${httpclient.socketTimeout}"></property>
+		<property name="staleConnectionCheckEnabled" value="${httpclient.staleConnectionCheckEnabled}"></property>
+	</bean>
+
+	<!-- 配置RequestConfig -->
+	<bean class="org.apache.http.client.config.RequestConfig" factory-bean="requestConfigBuilder" factory-method="build"></bean>
+
+	<bean class="com.taotao.common.httpclient.IdleConnectionEvictor">
+		<constructor-arg index="0" ref="httpClientConnectionManager"></constructor-arg>
+	</bean>
+</beans>

@@ -1,19 +1,20 @@
 package com.taotao.manage.service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.abel533.entity.Example;
 import com.github.pagehelper.PageHelper;
 import com.github.pagehelper.PageInfo;
 import com.taotao.common.bean.EasyUIResult;
 import com.taotao.common.httpclient.ApiService;
-import com.taotao.common.redis.RedisService;
 import com.taotao.manage.mapper.ItemMapper;
 import com.taotao.manage.pojo.Item;
 import com.taotao.manage.pojo.ItemDesc;
@@ -40,10 +41,9 @@ public class ItemService extends BaseService<Item> {
 	private ApiService apiService;
 	
 	@Autowired
-	private RedisService redisService;
+	private RabbitTemplate rabbitTemplate;
+	
 	private static final ObjectMapper MAPPER = new ObjectMapper();
-	private static final Integer TIME_OUT = 60 * 60 * 24 * 7;
-	private static final String key = "TAOTAO_MANAGE_ITEM_MSG";
 	
 	/**
 	 * 保存商品
@@ -73,13 +73,10 @@ public class ItemService extends BaseService<Item> {
 		itemParamItem.setItemId(item.getId());
 		itemParamItem.setParamData(itemParam);
 		Integer count3 = this.itemParamItemService.save(itemParamItem);
-		if (count3 != 1) {
+		/*if (count3 != 1) {
 			throw new RuntimeException("保存商品规格失败，但是没有异常，item:" + item + ",desc:" + desc + ",itemParam:" + itemParam);
-		}
-		
-		//删除后台商品缓存
-		this.redisService.del(key);
-		
+		}*/
+		this.sendMsg(String.valueOf(item.getId()), "insert");
 		return true;
 	}
 
@@ -91,16 +88,6 @@ public class ItemService extends BaseService<Item> {
 	 */
 	public EasyUIResult queryItemPage(Integer pageNum, Integer pageSize) {
 		
-		try {
-			//从缓存中读取数据
-			String jsonData = this.redisService.get(key);
-			if (StringUtils.isNotBlank(jsonData)) {
-				 return MAPPER.readValue(jsonData, EasyUIResult.class);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
 		PageHelper.startPage(pageNum, pageSize);
 		Example example = new Example(Item.class);
 		//设置排序条件，此时这个排序条件是sql语句的一部分，order by 之后的内容
@@ -110,13 +97,6 @@ public class ItemService extends BaseService<Item> {
 			return null;
 		}
 		PageInfo<Item> pageInfo = new PageInfo<>(list);
-		
-		//添加进缓存中
-		try {
-			this.redisService.set(key, MAPPER.writeValueAsString(new EasyUIResult(pageInfo.getTotal(), list)), TIME_OUT);
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-		}
 		
 		return new EasyUIResult(pageInfo.getTotal(), list);
 	}
@@ -129,16 +109,18 @@ public class ItemService extends BaseService<Item> {
 	public Integer updateInstorkByIds(String status,List<Object> ids) {
 		Item item = new Item();
 		if (status.equals("reshelf")) {
+			//上架
 			item.setStatus(1);
+			this.sendMsg(StringUtils.join(ids, ","), "insert");
 		}
 		if (status.equals("instock")) {
+			//下架
 			item.setStatus(2);
+			this.sendMsg(StringUtils.join(ids, ","), "delete");
 		}
 		Example example = new Example(Item.class);
 		example.createCriteria().andIn("id", ids);
 		
-		//删除后台商品缓存
-		this.redisService.del(key);
 		
 		return itemMapper.updateByExampleSelective(item, example);
 	}
@@ -163,21 +145,19 @@ public class ItemService extends BaseService<Item> {
 		}
 		//删除商品规格
 		Integer count3 = this.itemParamItemService.deleteByIds(ItemParamItem.class, "itemId", ids);
-		if (count3 != ids.size()) {
+		/*if (count3 != ids.size()) {
 			throw new RuntimeException("删除商品规格失败，但无异常！");
-		}
+		}*/
 		
 		//发送消息通知，商品被删除了
 		try {
-			StringBuilder sb = new StringBuilder();
+			/*StringBuilder sb = new StringBuilder();
 			for (Object id : ids) {
 				sb.append(id + ",");
-			}
-			this.apiService.doGet("http://www.taotao.com/api/item/" + sb.substring(0, sb.length()-1) + ".html");
-			sb.delete(0, sb.length());
-			
-			//删除后台商品缓存
-			this.redisService.del(key);
+			}*/
+			//this.apiService.doGet("http://www.taotao.com/api/item/" + sb.substring(0, sb.length()-1) + ".html");
+			this.sendMsg(StringUtils.join(ids, ","), "delete");
+			//sb.delete(0, sb.length());
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -209,21 +189,34 @@ public class ItemService extends BaseService<Item> {
 		}
 		//修改商品规格
 		Integer count3 = this.itemParamItemService.updateByItemId(item.getId(),itemParams);
-		if (count3 != 1) {
+		/*if (count3 != 1) {
 			throw new RuntimeException("修改商品规格失败，但是没有异常抛出：item:" + item + ",desc:" + desc + ",itemParams" + itemParams);
-		}
+		}*/
 		
 		//发送消息通知，某个商品被修改了
 		try {
-			this.apiService.doGet("http://www.taotao.com/api/item/" + item.getId() + ".html");
-			
-			//删除后台商品缓存
-			this.redisService.del(key);
+			//this.apiService.doGet("http://www.taotao.com/api/item/" + item.getId() + ".html");
+			this.sendMsg(String.valueOf(item.getId()), "update");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		
 		return true;
+	}
+	
+	/**
+	 * 消息需要发送什么内容 itemId + 操作类型 + 时间 以什么样的格式去发送 json
+	 */
+	private void sendMsg(String itemId,String type) {
+		try {
+			Map<String , Object> msgMap = new HashMap<>();
+			msgMap.put("itemId", itemId);
+			msgMap.put("type", type);
+			msgMap.put("time", System.currentTimeMillis());
+			this.rabbitTemplate.convertAndSend("item." + type, MAPPER.writeValueAsString(msgMap));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 }

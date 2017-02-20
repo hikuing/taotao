@@ -1,0 +1,23 @@
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+	xsi:schemaLocation="http://www.springframework.org/schema/rabbit
+	http://www.springframework.org/schema/rabbit/spring-rabbit-1.4.xsd
+	http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans-4.1.xsd">
+
+	<!-- 消费者者 -->
+	<!-- 连接工厂 -->
+	<rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+		port="${rabbitmq.port}" username="${rabbitmq.username}" password="${rabbitmq.password}" virtual-host="${rabbitmq.vhost}"/>
+	<!-- 管理器 -->
+	<rabbit:admin connection-factory="connectionFactory"/>
+	
+	<!-- 队列 ,auto-declare ：如果队列存在则直接使用，否则创建 durable:持久化-->
+	<rabbit:queue auto-declare="true" durable="true" name="TAOTAO-SEARCH-ITEM-QUEUE"></rabbit:queue>
+	<!-- 监听器 -->
+	<rabbit:listener-container connection-factory="connectionFactory">
+		<!-- 配置消息的处理的bean对象  -->
+		<rabbit:listener ref="itemListener" method="execute" queue-names="TAOTAO-SEARCH-ITEM-QUEUE"/>
+	</rabbit:listener-container>
+	<bean id="itemListener" class="com.taotao.search.rabbit.ItemListener"></bean>
+</beans>

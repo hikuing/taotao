@@ -18,5 +18,11 @@
         <property name="suffix" value=".jsp"></property>
         <property name="order" value="2"></property>
     </bean>
-    
+    <!-- 配置自定义拦截器 -->
+    <mvc:interceptors>
+		<mvc:interceptor>
+			<mvc:mapping path="/order/**"/>
+			<bean class="com.taotao.web.interceptor.UserInterceptor"></bean>
+		</mvc:interceptor>
+	</mvc:interceptors>
 </beans>

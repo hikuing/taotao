@@ -133,9 +133,10 @@ public class ItemService {
 	 * 删除商品缓存
 	 * @param itemId
 	 */
-	public void delItemCache(Long[] itemId) {
+	public void delItemCache(String itemId) {
 		//this.redisService.del(KEY + itemId);
-		for (Long id : itemId) {
+		String[] split = StringUtils.split(itemId, ",");
+		for (String id : split) {
 			this.redisService.del(KEY + id);
 		}
 	}
